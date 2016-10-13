@@ -1,0 +1,28 @@
+- hosts: servers, clients
+  remote_user: centos
+  become: yes
+  become_method: sudo
+  tasks:
+  - name: Add repository
+    yum_repository:
+      name: epel
+      description: EPEL YUM repo
+      baseurl: http://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+
+  - name: download gpg key
+    get_url: url=https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-7 dest=/tmp
+
+  - name: find gpg keys
+    find: paths="/" patterns="*GPG*" recurse="yes"
+    register: gpg_keys
+
+  - name: import gpg keys
+    command: "rpm --import {{ item.path }}"
+    with_items: "{{ gpg_keys.files }}"
+
+  - name: install iperf3
+    yum: name=iperf3 state=latest
+
+  - name: install mtr
+    yum: name=mtr state=latest
+

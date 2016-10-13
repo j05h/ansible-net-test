@@ -1,0 +1,38 @@
+- hosts: servers
+  remote_user: centos
+  tasks:
+  - name: start server iperf
+    shell: iperf3 --server --one-off --daemon
+
+- hosts: clients
+  remote_user: centos
+  tasks:
+  - name: set iperf server
+    set_fact: iperf_server="{{ groups['servers'][groups['clients'].index(inventory_hostname)] }}"
+  - name: set output base
+    set_fact: output_base="{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}_{{ iperf_server }}.out"
+  - name: set iperf out
+    set_fact: iperf_out="iperf_{{ output_base }}"
+  - name: set mtr out
+    set_fact: mtr_out="mtr_{{ output_base }}"
+  - name: start client iperf
+    shell: "iperf3 --client {{ iperf_server }} --time 600 >> {{ iperf_out }}"
+  - name: start client mtr
+    shell: "/usr/sbin/mtr --report {{ iperf_server }} -c 100 >> {{ mtr_out }}"
+  - name: grab iperf output
+    fetch: src={{ iperf_out }} dest=results/ flat=yes
+  - name: grab mtr output
+    fetch: src={{ mtr_out }} dest=results/ flat=yes
+
+- hosts: localhost
+  connection: local
+  tasks:
+  - name: stats
+    tags: stats
+    shell: "tail -3 results/iperf*.out | awk '/Gbits/ { sum += $7; n++} END { print sum / n }'"
+    register: stats
+  - name: print stats
+    tags: stats
+    debug: msg="Average iperf bandwidth {{ stats.stdout }} Gbits/s"
+
+
